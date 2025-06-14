@@ -1,9 +1,9 @@
 import inspect
 import threading
 
-from . import context as t_context
-from . import scheduler as t_scheduler
-from . import wrapper as t_wrapper
+from . import context as _context
+from . import scheduler as _scheduler
+from . import wrapper as _wrapper
 
 class TaskState:
 
@@ -18,9 +18,9 @@ class Task:
         if func is None:
             return super().__new__(cls)
         if inspect.iscoroutinefunction(func) or inspect.isgeneratorfunction(func):
-            return t_wrapper._task_coroutine_wrapper(func)
+            return _wrapper._task_coroutine_wrapper(func)
         if callable(func):
-            return t_wrapper._task_sync_wrapper(func)
+            return _wrapper._task_sync_wrapper(func)
         raise ValueError
 
     def __init__(self, unused):
@@ -157,9 +157,9 @@ class Task:
                     value, send = task._value, task._is_succeeded_unsafe()
                     continue
                 else:
-                    context = t_context.TaskSyncContext.current() if capture else None
+                    context = _context.TaskSyncContext.current() if capture else None
                     if context is None:
-                        context = t_scheduler.TaskScheduler.default()
+                        context = _scheduler.TaskScheduler.default()
                     task.continue_with(
                         lambda t: context.post(self._continue_coroutine, coro, t._value, t._is_succeeded_unsafe()))
             except StopIteration as e:

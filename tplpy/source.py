@@ -1,9 +1,9 @@
-from . import task as t_task
+from . import task as _task
 
 class TaskCompletionSource:
 
     def __init__(self):
-        self._task = t_task.Task(None)
+        self._task = _task.Task(None)
 
     @property
     def task(self):
