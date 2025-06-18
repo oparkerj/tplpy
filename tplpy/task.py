@@ -32,27 +32,17 @@ class Task:
     def __await__(self):
         return (yield self)
 
-    def _is_completed_unsafe(self):
+    def is_completed(self):
         return self._state != TaskState.RUNNING
 
-    def _is_succeeded_unsafe(self):
+    def is_succeeded(self):
         return self._state == TaskState.SUCCEEDED
 
-    def is_completed(self):
-        with self._condition:
-            return self._is_completed_unsafe()
-
-    def is_succeeded(self):
-        with self._condition:
-            return self._is_succeeded_unsafe()
-
     def is_faulted(self):
-        with self._condition:
-            return self._state == TaskState.FAULTED
+        return self._state == TaskState.FAULTED
 
     def is_cancelled(self):
-        with self._condition:
-            return self._state == TaskState.CANCELLED
+        return self._state == TaskState.CANCELLED
 
     @property
     def completed(self):
@@ -71,21 +61,21 @@ class Task:
         return self.is_cancelled()
 
     def _get_result_internal(self):
-        if self._state == TaskState.SUCCEEDED:
+        if self.is_succeeded():
             return self._value
         if self._state in (TaskState.FAULTED, TaskState.CANCELLED):
             raise self._value
         raise RuntimeError("Invalid task state.")
 
     def get_result(self, timeout=None):
-        with self._condition:
-            if self._is_completed_unsafe():
-                return self._get_result_internal()
+        if self.is_completed():
+            return self._get_result_internal()
 
-            if not self._condition.wait(timeout=timeout):
+        with self._condition:
+            if not self._condition.wait_for(self.is_completed, timeout=timeout):
                 raise TaskTimeout
 
-            return self._get_result_internal()
+        return self._get_result_internal()
 
     @property
     def result(self):
@@ -95,8 +85,9 @@ class Task:
         return ConfiguredTaskAwaitable(self, capture_context)
 
     def continue_with(self, callback):
+        # TODO this should be returning a Task
         with self._condition:
-            if not self._is_completed_unsafe():
+            if not self.is_completed():
                 self._continuations.append(callback)
                 return
         callback(self)
@@ -111,7 +102,7 @@ class Task:
 
     def _try_set_state(self, value, state):
         with self._condition:
-            if self._is_completed_unsafe():
+            if self.is_completed():
                 return False
             self._value = value
             self._state = state
