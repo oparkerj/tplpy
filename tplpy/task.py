@@ -107,6 +107,7 @@ class Task:
         return ConfiguredTaskAwaitable(self, capture_context)
 
     def continue_with(self, callback):
+        # TODO this should return a Task
         with self._condition:
             if not self._is_completed_unsafe():
                 self._continuations.append(callback)
@@ -189,6 +190,7 @@ class Task:
                 coro.close()
                 self._set_cancelled(e.cancel_token)
             except Exception as e:
+                # TODO should this be BaseException
                 coro.close()
                 self._set_exception(e)
             return
@@ -200,6 +202,7 @@ class Task:
         except TaskCancel as e:
             self._set_cancelled(e.cancel_token)
         except Exception as e:
+            # TODO should this be BaseException
             self._set_exception(e)
 
 class ConfiguredTaskAwaitable:
