@@ -71,7 +71,7 @@ class Task:
         return self.is_cancelled()
 
     def _get_result_internal(self):
-        if self._state == TaskState.SUCCEEDED:
+        if self._is_succeeded_unsafe():
             return self._value
         if self._state in (TaskState.FAULTED, TaskState.CANCELLED):
             raise self._value
