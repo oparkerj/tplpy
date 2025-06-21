@@ -7,10 +7,11 @@ from . import wrapper as _wrapper
 
 class TaskState:
 
-    RUNNING = 0
-    SUCCEEDED = 1
-    FAULTED = 2
-    CANCELLED = 3
+    NEW = 0
+    RUNNING = 1
+    SUCCEEDED = 2
+    FAULTED = 3
+    CANCELLED = 4
 
 class Task:
 
@@ -25,18 +26,25 @@ class Task:
 
     def __init__(self, unused):
         self._condition = threading.Condition()
-        self._state = TaskState.RUNNING
+        self._state = TaskState.NEW
         self._continuations = []
         self._value = None
 
     def __await__(self):
         return (yield self)
 
+    def _is_running_unsafe(self):
+        return self._state == TaskState.RUNNING
+
     def _is_completed_unsafe(self):
         return self._state != TaskState.RUNNING
 
     def _is_succeeded_unsafe(self):
         return self._state == TaskState.SUCCEEDED
+
+    def is_running(self):
+        with self._condition:
+            return self._is_running_unsafe()
 
     def is_completed(self):
         with self._condition:
@@ -53,6 +61,10 @@ class Task:
     def is_cancelled(self):
         with self._condition:
             return self._state == TaskState.CANCELLED
+
+    @property
+    def running(self):
+        return self.is_running()
 
     @property
     def completed(self):
@@ -123,6 +135,13 @@ class Task:
         if not self._try_set_state(value, state):
             raise RuntimeError("Invalid task state.")
 
+    def _set_running(self):
+        with self._condition:
+            if self._state == TaskState.NEW:
+                self._state = TaskState.RUNNING
+            else:
+                raise RuntimeError("Task is not new.")
+
     def _set_result(self, value):
         self._set_state(value, TaskState.SUCCEEDED)
 
@@ -142,6 +161,7 @@ class Task:
         return self._try_set_state(TaskCancel(cancel_token), TaskState.CANCELLED)
 
     def _exec_coroutine(self, func, *args, **kwargs):
+        self._set_running()
         coro = func(*args, **kwargs)
         self._continue_coroutine(coro, None, True)
 
@@ -174,6 +194,7 @@ class Task:
             return
 
     def _exec_sync(self, func, *args, **kwargs):
+        self._set_running()
         try:
             self._set_result(func(*args, **kwargs))
         except TaskCancel as e:
