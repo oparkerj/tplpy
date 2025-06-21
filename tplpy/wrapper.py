@@ -2,6 +2,9 @@ import functools
 
 from . import task as _task
 
+def _task_callback_wrapper(task, callback):
+    return functools.partial(task._exec_sync, callback)
+
 def _task_coroutine_wrapper(func):
     @functools.wraps(func)
     def _exec(*args, **kwargs):

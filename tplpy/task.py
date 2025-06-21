@@ -106,13 +106,21 @@ class Task:
     def configure_await(self, capture_context):
         return ConfiguredTaskAwaitable(self, capture_context)
 
-    def continue_with(self, callback):
-        # TODO this should return a Task
+    def _continue_with_internal(self, callback):
+        # If the task is not complete, add the callback to the continuations
         with self._condition:
             if not self._is_completed_unsafe():
                 self._continuations.append(callback)
                 return
+        # The task is already completed, run the callback immediately
         callback(self)
+
+    def continue_with(self, callback):
+        task = Task(None)
+        # The wrapper will execute the callback and set the task result
+        task_callback = _wrapper._task_callback_wrapper(task, callback)
+        self._continue_with_internal(task_callback)
+        return task
 
     def _run_continuations(self):
         for continuation in self._continuations:
@@ -181,7 +189,7 @@ class Task:
                     context = _context.TaskSyncContext.current() if capture else None
                     if context is None:
                         context = _scheduler.TaskScheduler.default()
-                    task.continue_with(
+                    task._continue_with_internal(
                         lambda t: context.post(self._continue_coroutine, coro, t._value, t._is_succeeded_unsafe()))
             except StopIteration as e:
                 coro.close()
