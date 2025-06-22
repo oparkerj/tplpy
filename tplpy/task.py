@@ -33,6 +33,10 @@ class Task:
     def __await__(self):
         return (yield self)
 
+    def _state_internal(self):
+        with self._condition:
+            return self._value, self._state
+
     def _is_running_unsafe(self):
         return self._state == TaskState.RUNNING
 
@@ -212,6 +216,14 @@ class Task:
         except Exception as e:
             # TODO should this be BaseException
             self._set_exception(e)
+
+    def _forward_to(self, task):
+        self._continue_with_internal(lambda t: task._set_state(*t._state_internal()))
+
+    def unwrap(self):
+        task = Task(None)
+        self._continue_with_internal(lambda t: (t.result if t.succeeded else t)._forward_to(task))
+        return task
 
 class ConfiguredTaskAwaitable:
 
