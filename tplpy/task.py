@@ -178,6 +178,10 @@ class Task:
         coro = func(*args, **kwargs)
         self._continue_coroutine(coro, None, True)
 
+    def _get_coroutine_state(self):
+        with self._condition:
+            return self._value, self._is_succeeded_unsafe()
+
     def _continue_coroutine(self, coro, value, send):
         while True:
             try:
@@ -187,14 +191,14 @@ class Task:
                     capture, task = task.capture_context, task.task
 
                 if task.completed:
-                    value, send = task._value, task._is_succeeded_unsafe()
+                    value, send = task._get_coroutine_state()
                     continue
                 else:
                     context = _context.TaskSyncContext.current() if capture else None
                     if context is None:
                         context = _scheduler.TaskScheduler.default()
                     task._continue_with_internal(
-                        lambda t: context.post(self._continue_coroutine, coro, t._value, t._is_succeeded_unsafe()))
+                        lambda t: context.post(self._continue_coroutine, coro, *t._get_coroutine_state()))
             except StopIteration as e:
                 coro.close()
                 self._set_result(e.value)
